@@ -181,19 +181,15 @@ module vec_dot_product_8_bhv_treeadd_unpacked (
     output logic [18:0] dot_product
 );
     logic [15:0] products [8];
+    logic [16:0] sum_l1 [4];
+    logic [17:0] sum_l2 [2];
     
-    genvar i;
+    genvar i, j, k;
     generate
         for (i = 0; i < 8; i++) begin : gen_mult
             assign products[i] = vec_a[i*8 +: 8] * vec_b[i*8 +: 8];
         end
-    endgenerate
-    
-    logic [16:0] sum_l1 [4];
-    logic [17:0] sum_l2 [2];
-    genvar j, k;
 
-    generate
         for (j = 0; j < 4; j++) begin : gen_l1
             assign sum_l1[j] = products[2*j] + products[2*j+1];
         end
