@@ -1,11 +1,11 @@
 module vec_dot_product_8_treeadd_comparator (
     input logic [64-1:0] vec_a, vec_b,
-    output logic [19-1:0] dot_product_bhv_treeadd_cld, dot_product_bhv_treeadd_packed, dot_product_bhv_treadd_unpacked, vec_dot_product_8_bhv_funadd
+    output logic [19-1:0] dot_product_bhv_treeadd_explicit, dot_product_bhv_treeadd_packed, dot_product_bhv_treadd_unpacked, vec_dot_product_8_bhv_param
 );
-    vec_dot_product_8_bhv_treeadd_cld (
+    vec_dot_product_8_bhv_treeadd_explicit (
         .vec_a(vec_a),
         .vec_b(vec_b),
-        .dot_product(dot_product_bhv_treeadd_cld)
+        .dot_product(dot_product_bhv_treeadd_explicit)
     );
     vec_dot_product_8_bhv_treeadd_packed (
         .vec_a(vec_a),
@@ -20,13 +20,13 @@ module vec_dot_product_8_treeadd_comparator (
     vector_dot_product_8_bhv_treeadd_param (
         .vec_a(vec_a),
         .vec_b(vec_b),
-        .dot_product(dot_product_bhv_treeadd_)
+        .dot_product(dot_product_bhv_treeadd_param)
     );
 endmodule
 
 // Claude
 // Using explicit tree-based adder
-module vec_dot_product_8_bhv_treeadd_cld (
+module vec_dot_product_8_bhv_treeadd_explicit (
     input  logic [64-1:0] vec_a, vec_b,
     output logic [19-1:0] dot_product
 );
@@ -60,7 +60,7 @@ module vec_dot_product_8_bhv_treeadd_cld (
     assign dot_product = sum_level2[0] + sum_level2[1];
 endmodule
 
-// Same target, without intermediary unpacked vectors
+// Same target, generate block, packed intermediary vectors
 module vec_dot_product_8_bhv_treeadd_packed (
     input logic [64-1:0] vec_a, vec_b,
     output [19-1:0] dot_product
@@ -74,7 +74,7 @@ module vec_dot_product_8_bhv_treeadd_packed (
             assign products[i] = vec_a[i*8 +: 8] * vec_b[i*8 +: 8];
         end
     endgenerate
-    
+
     logic [17*4-1:0] sum_level1;
     logic [18*2-1:0] sum_level2;
 
@@ -95,53 +95,36 @@ module vec_dot_product_8_bhv_treeadd_packed (
     assign dot_product = sum_level2[36-1:18] + sum_level2[18-1:0];
 endmodule
 
-// Using generate blocks for intermediary addition steps, with unpacked arrays
+// Generate blocks for intermediary addition steps, unpacked arrays
 module vec_dot_product_8_bhv_treeadd_unpacked (
-    input  logic [63:0] vec_a, vec_b,
+    input  logic [63:0] vec_a, vec_b, // can use packed 2D here as well
     output logic [18:0] dot_product
 );
     logic [15:0] products [8];
     logic [16:0] sum_l1 [4];
     logic [17:0] sum_l2 [2];
-    
+
     genvar i, j, k;
     generate
         for (i = 0; i < 8; i++) begin : gen_mult
-            assign products[i] = vec_a[i*8 +: 8] * vec_b[i*8 +: 8];
+            assign products[i] = vec_a[i*8 +: 8] * vec_b[i*8 +: 8]; // if using packed 2D, just use [i]
         end
 
         for (j = 0; j < 4; j++) begin : gen_l1
             assign sum_l1[j] = products[2*j] + products[2*j+1];
         end
-        
+
         for (k = 0; k < 2; k++) begin : gen_l2
             assign sum_l2[k] = sum_l1[2*k] + sum_l1[2*k+1];
         end
     endgenerate
-    
+
     assign dot_product = sum_l2[0] + sum_l2[1];
 endmodule
 
-// Claude: Using systemverilog array sum function
-// ################# Not compiling. Apparently needs IP########################
-module vec_dot_product_8_bhv_funadd (
-    input  logic [8-1:0][8-1:0] vec_a, vec_b,  // 2D packed array
-    output logic [19-1:0]     dot_product
-);
-    // Using SystemVerilog reduction
-    logic [15:0] products [8];
-    
-    always_comb begin
-        for (int i = 0; i < 8; i++) begin
-            products[i] = vec_a[i] * vec_b[i];
-        end
-        
-        // Could use array reduction functions
-        dot_product = products.sum();  // SystemVerilog array method
-    end
-endmodule
-
 // Claude: PARAMETERIZED VERSION: Most flexible and reusable
+// using function for treeadder
+// ############## DOES NOT CREATE TREEADDER LIKE CLAUDE CLAIMED ###############
 module vector_dot_product_8_bhv_treeadd_param #(
     parameter int NUM_ELEMENTS = 8,
     parameter int ELEMENT_WIDTH = 8,
@@ -152,11 +135,11 @@ module vector_dot_product_8_bhv_treeadd_param #(
 );
     // Calculate product width: element_width * 2
     localparam int PRODUCT_WIDTH = ELEMENT_WIDTH * 2;
-    
+
     logic [ELEMENT_WIDTH-1:0] a_elements [NUM_ELEMENTS-1:0];
     logic [ELEMENT_WIDTH-1:0] b_elements [NUM_ELEMENTS-1:0];
     logic [PRODUCT_WIDTH-1:0] products [NUM_ELEMENTS-1:0];
-    
+
     // Extract elements and compute products
     genvar i;
     generate
@@ -164,11 +147,11 @@ module vector_dot_product_8_bhv_treeadd_param #(
             assign products[i] = vec_a[i] * vec_b[i];
         end
     endgenerate
-    
+
     // Recursive tree summation function
     function automatic logic [$clog2(NUM_ELEMENTS * (2**ELEMENT_WIDTH)**2)-1:0] sum_products;
         input logic [PRODUCT_WIDTH-1:0] prods [NUM_ELEMENTS-1:0];
-        logic [$clog2(NUM_ELEMENTS * (2**ELEMENT_WIDTH - 1)**2)-1:0] result;
+        logic [$clog2(NUM_ELEMENTS * (2**ELEMENT_WIDTH)**2)-1:0] result;
         begin
             result = 0;
             for (int j = 0; j < NUM_ELEMENTS; j++) begin
@@ -177,6 +160,25 @@ module vector_dot_product_8_bhv_treeadd_param #(
             sum_products = result;
         end
     endfunction
-    
+
     assign dot_product = sum_products(products);
+endmodule
+
+// Claude: Using systemverilog array sum function
+// ################# Not compiling. Apparently needs IP########################
+module vec_dot_product_8_bhv_funadd (
+    input  logic [8-1:0][8-1:0] vec_a, vec_b,  // 2D packed array
+    output logic [19-1:0]     dot_product
+);
+    // Using SystemVerilog reduction
+    logic [15:0] products [8];
+
+    always_comb begin
+        for (int i = 0; i < 8; i++) begin
+            products[i] = vec_a[i] * vec_b[i];
+        end
+
+        // Could use array reduction functions
+        dot_product = products.sum();  // SystemVerilog array method
+    end
 endmodule
