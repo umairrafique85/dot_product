@@ -1,23 +1,23 @@
-module vec_dot_product_8_treeadd_comparator (
+module vector_dot_product_8_treeadd_comparator_8 (
     input logic [64-1:0] vec_a, vec_b,
-    output logic [19-1:0] dot_product_bhv_treeadd_explicit, dot_product_bhv_treeadd_packed, dot_product_bhv_treadd_unpacked, vec_dot_product_8_bhv_param
+    output logic [19-1:0] dot_product_bhv_treeadd_explicit, dot_product_bhv_treeadd_packed, dot_product_bhv_treadd_unpacked
 );
-    vec_dot_product_8_bhv_treeadd_explicit (
+    vector_dot_product_bhv_treeadd_explicit_8 (
         .vec_a(vec_a),
         .vec_b(vec_b),
         .dot_product(dot_product_bhv_treeadd_explicit)
     );
-    vec_dot_product_8_bhv_treeadd_packed (
+    vector_dot_product_bhv_treeadd_packed_8 (
         .vec_a(vec_a),
         .vec_b(vec_b),
         .dot_product(dot_product_bhv_treeadd_packed)
     );
-    vec_dot_product_8_bhv_treeadd_unpacked (
+    vector_dot_product_bhv_treeadd_unpacked_8 (
         .vec_a(vec_a),
         .vec_b(vec_b),
         .dot_product(dot_product_bhv_treeadd_unpacked)
     );
-    vector_dot_product_8_bhv_treeadd_param (
+    vector_dot_product_bhv_treeadd_param_8 (
         .vec_a(vec_a),
         .vec_b(vec_b),
         .dot_product(dot_product_bhv_treeadd_param)
@@ -25,7 +25,7 @@ module vec_dot_product_8_treeadd_comparator (
 endmodule
 
 // Using explicit tree-based adder
-module vec_dot_product_8_bhv_treeadd_explicit (
+module vector_dot_product_bhv_treeadd_explicit_8 (
     input logic [8-1:0][8-1:0] vec_a, vec_b,
     input logic clk,
     input logic rst_n, // Active-low reset
@@ -39,11 +39,13 @@ module vec_dot_product_8_bhv_treeadd_explicit (
     logic reg_compute_begin;
 
     // Register vectors on first clock edge and mark start of compute
-    always_ff @(posedge clk or negedge rst_n) begin
+    always_ff @(posedge clk or negedge rst_n) begin: proc_reg_compute_start
         if (~rst_n) begin
-            reg_compute_begin = 1'b0;
+            reg_compute_begin <= 1'b0;
+            reg_vec_a <= '0;
+            reg_vec_b <= '0;
         end else if (compute) begin
-            reg_compute_begin = 1'b1;
+            reg_compute_begin <= 1'b1;
             reg_vec_a <= vec_a;
             reg_vec_b <= vec_b;
         end
@@ -51,7 +53,7 @@ module vec_dot_product_8_bhv_treeadd_explicit (
 
     genvar i;
     generate
-        for (i = 0; i < 8; i++) begin : proc_extract_multiply
+        for (i = 0; i < 8; i++) begin : gen_extract_multiply
             assign products[i] = reg_vec_a[i] * reg_vec_b[i];
         end
     endgenerate
@@ -82,8 +84,9 @@ module vec_dot_product_8_bhv_treeadd_explicit (
     end
 endmodule
 
-// Same target, generate block, packed intermediary vectors
-module vec_dot_product_8_bhv_treeadd_packed (
+// Same target, generate block, packed vectors for initial vector registers, unpacked vector for products
+// packed intermediary sums
+module vector_dot_product_bhv_treeadd_packed_8 (
     input logic [8-1:0][8-1:0] vec_a, vec_b,
     input logic clk,
     input logic rst_n, // Active-low reset
@@ -92,11 +95,11 @@ module vec_dot_product_8_bhv_treeadd_packed (
     output logic out_valid
 );
 
-    logic [15:0] products [8-1:0]; // Array of products
+    logic [16-1:0] products [8]; // Array of products
     logic [8-1:0][8-1:0] reg_vec_a, reg_vec_b;
     logic reg_compute_begin;
 
-    always_ff @(posedge clk or negedge rst_n) begin
+    always_ff @(posedge clk or negedge rst_n) begin: proc_reg_compute_start
         if (~rst_n) begin
             reg_compute_begin <= 1'b0;
             reg_vec_a <= '0;
@@ -110,31 +113,31 @@ module vec_dot_product_8_bhv_treeadd_packed (
 
     genvar i;
     generate
-        for (i = 0; i < 8; i++) begin: proc_multiply
-            assign products[i] = reg_vec_a[i*8 +: 8] * reg_vec_b[i*8 +: 8];
+        for (i = 0; i < 8; i++) begin: gen_multiply
+            assign products[i] = reg_vec_a[i] * reg_vec_b[i];
         end
     endgenerate
 
-    logic [17*4-1:0] sum_level1;
-    logic [18*2-1:0] sum_level2;
+    logic [17-1:0][4-1:0] sum_level1;
+    logic [18-1:0][2-1:0] sum_level2;
     logic [19-1:0] dot_product_int;
 
     // Tree-based addition using generate
     genvar j;
     generate
-        for (j = 0; j < 4; j++) begin: proc_add_stage_1
-            assign sum_level1[j*17 +: 17] = products[j*2] + products[j*2+1];
+        for (j = 0; j < 4; j++) begin: gen_add_stage_1
+            assign sum_level1[j] = products[(j*2)+1] + products[(j*2)+1];
         end
     endgenerate
 
     genvar k;
     generate
-        for (k = 0; k < 2; k++) begin: proc_add_state_2
-            assign sum_level2[k*18 +: 18] = sum_level1[k*2*17 +: 17] + sum_level1[(k*2+1)*17 +: 17];
+        for (k = 0; k < 2; k++) begin: gen_add_state_2
+            assign sum_level2[k] = sum_level1[(k*2)] + sum_level1[(k*2)+1];
         end
     endgenerate
 
-    assign dot_product_int = sum_level2[36-1:18] + sum_level2[18-1:0];
+    assign dot_product_int = sum_level2[0] + sum_level2[1];
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (~rst_n) begin
@@ -147,36 +150,71 @@ module vec_dot_product_8_bhv_treeadd_packed (
     end
 endmodule
 
-// Generate blocks for intermediary addition steps, unpacked arrays
-module vec_dot_product_8_bhv_treeadd_unpacked (
-    input  logic [63:0] vec_a, vec_b, // can use packed 2D here as well
-    output logic [18:0] dot_product
+// Generate block, unpacked vectors for initial registers, products, and intermediary sums
+module vector_dot_product_bhv_treeadd_unpacked_8 (
+    input logic [8-1:0][8-1:0] vec_a, vec_b,
+    input logic clk,
+    input logic compute,
+    input logic rst_n,
+    output logic [19-1:0] dot_product,
+    output logic out_valid
 );
-    logic [15:0] products [8];
-    logic [16:0] sum_l1 [4];
-    logic [17:0] sum_l2 [2];
+    logic reg_compute_begin;
+    int i;
+    logic [8-1:0] reg_vec_a, reg_vec_b [8];
+
+    always_ff @(posedge clk or negedge rst_n) begin: proc_reg_compute_start
+        if (~rst_n) begin
+            reg_compute_begin <= 1'b0;
+            for (i = 0; i < 8; i++) begin
+                reg_vec_a[i] <= '0;
+                reg_vec_b[i] <= '0;
+            end
+        end else if (compute) begin
+            for (i = 0; i < 8; i++) begin
+                reg_vec_a[i] <= vec_a[i];
+                reg_vec_b[i] <= vec_b[i];
+            end
+            reg_compute_begin <= 1'b1;
+        end
+    end
+
+    logic [16-1:0] products [8];
+    logic [17-1:0] sum_l1 [4];
+    logic [18-1:0] sum_l2 [2];
+    logic [19-1:0] dot_product_in;
 
     genvar i, j, k;
     generate
         for (i = 0; i < 8; i++) begin : gen_mult
-            assign products[i] = vec_a[i*8 +: 8] * vec_b[i*8 +: 8]; // if using packed 2D, just use [i]
+            assign products[i] = reg_vec_a[i] * reg_vec_b[i]; // if using packed 2D, just use [i]
         end
 
-        for (j = 0; j < 4; j++) begin : gen_l1
+        for (j = 0; j < 4; j++) begin : gen_sum_l1
             assign sum_l1[j] = products[2*j] + products[2*j+1];
         end
 
-        for (k = 0; k < 2; k++) begin : gen_l2
+        for (k = 0; k < 2; k++) begin : gen_sum_l2
             assign sum_l2[k] = sum_l1[2*k] + sum_l1[2*k+1];
         end
     endgenerate
 
-    assign dot_product = sum_l2[0] + sum_l2[1];
+    assign dot_product_int = sum_l2[0] + sum_l2[1];
+
+    always_ff @(posedge clk or negedge rst_n) begin: proc_output
+        if (~rst_n) begin
+            dot_product <= '0;
+            out_valid <= 1'b0;
+        end else if (reg_compute_begin) begin
+            dot_product <= dot_product_int;
+            out_valid <= 1'b0;
+        end
+    end
 endmodule
 
 // Claude: Using systemverilog array sum function
 // ################# Not compiling. Apparently needs IP########################
-// module vec_dot_product_8_bhv_funadd (
+// module vector_dot_product_8_bhv_funadd (
 //     input  logic [8-1:0][8-1:0] vec_a, vec_b,  // 2D packed array
 //     output logic [19-1:0]     dot_product
 // );
