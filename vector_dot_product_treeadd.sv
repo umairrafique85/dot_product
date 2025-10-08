@@ -5,6 +5,7 @@ module vector_dot_product_8_treeadd_comparator_8 (
         dot_product_bhv_treeadd_packed,
         dot_product_bhv_treadd_unpacked,//dot_product_bhv_treeadd_param,
         dot_product_bhv_treeadd_pipelined,
+        dot_product_bhv_treeadd_pipelined_combMul,
     output logic out_valid
 );
     vector_dot_product_bhv_treeadd_explicit_8 (
@@ -42,6 +43,16 @@ module vector_dot_product_8_treeadd_comparator_8 (
         .vec_b(vec_b),
         .out_valid(out_valid),
         .dot_product(dot_product_bhv_treeadd_pipelined)
+    );
+    vector_dot_product_bhv_treeadd_pipelined_combMult_8 (
+        .clk(clk),
+        .compute(compute),
+        .rst_n(rst_n),
+        .vec_a(vec_a),
+        .vec_b(vec_b),
+        .out_valid(out_valid),
+        .dot_product(dot_product_bhv_treeadd_pipelined_combMul)
+
     );
     // vector_dot_product_bhv_treeadd_param_8 (
     //     .vec_a(vec_a),
@@ -176,8 +187,71 @@ module vector_dot_product_bhv_treeadd_packed_8 (
     end
 endmodule
 
-// Pipelined, packed vectors for initial registers, unpacked for products, and intermediary sums
-module vector_dot_product_bhv_treeadd_pipelined_8 (
+// Generate block, unpacked vectors for initial registers, products, and intermediary sums
+module vector_dot_product_bhv_treeadd_unpacked_8 (
+    input logic [8-1:0][8-1:0] vec_a, vec_b,
+    input logic clk,
+    input logic compute,
+    input logic rst_n,
+    output logic [19-1:0] dot_product,
+    output logic out_valid
+);
+    logic reg_compute_begin;
+    int i;
+    logic [8-1:0] reg_vec_a, reg_vec_b [8];
+
+    always_ff @(posedge clk or negedge rst_n) begin: proc_reg_compute_start
+        if (~rst_n) begin
+            reg_compute_begin <= 1'b0;
+            for (i = 0; i < 8; i++) begin
+                reg_vec_a[i] <= '0;
+                reg_vec_b[i] <= '0;
+            end
+        end else if (compute) begin
+            for (i = 0; i < 8; i++) begin
+                reg_vec_a[i] <= vec_a[i];
+                reg_vec_b[i] <= vec_b[i];
+            end
+            reg_compute_begin <= 1'b1;
+        end
+    end
+
+    logic [16-1:0] products [8];
+    logic [17-1:0] sum_l1 [4];
+    logic [18-1:0] sum_l2 [2];
+    logic [19-1:0] dot_product_in;
+
+    genvar i, j, k;
+    generate
+        for (i = 0; i < 8; i++) begin : gen_mult
+            assign products[i] = reg_vec_a[i] * reg_vec_b[i]; // if using packed 2D, just use [i]
+        end
+
+        for (j = 0; j < 4; j++) begin : gen_sum_l1
+            assign sum_l1[j] = products[2*j] + products[2*j+1];
+        end
+
+        for (k = 0; k < 2; k++) begin : gen_sum_l2
+            assign sum_l2[k] = sum_l1[2*k] + sum_l1[2*k+1];
+        end
+    endgenerate
+
+    assign dot_product_int = sum_l2[0] + sum_l2[1];
+
+    always_ff @(posedge clk or negedge rst_n) begin: proc_output
+        if (~rst_n) begin
+            dot_product <= '0;
+            out_valid <= 1'b0;
+        end else if (reg_compute_begin) begin
+            dot_product <= dot_product_int;
+            out_valid <= 1'b0;
+        end
+    end
+endmodule
+
+// Pipelined, packed vectors for initial registers, unpacked for products, packed intermediary sums
+// combinational multiply
+module vector_dot_product_bhv_treeadd_pipelined_combMult_8 (
     input logic [8-1:0][8-1:0] vec_a, vec_b,
     input logic clk,
     input logic rst_n, // Active-low reset
@@ -260,68 +334,76 @@ module vector_dot_product_bhv_treeadd_pipelined_8 (
     end
 endmodule
 
-// Generate block, unpacked vectors for initial registers, products, and intermediary sums
-module vector_dot_product_bhv_treeadd_unpacked_8 (
+// Pipelined, unpacked products, packed intermediary sums
+module vector_dot_product_bhv_treeadd_pipelined_8 (
     input logic [8-1:0][8-1:0] vec_a, vec_b,
     input logic clk,
-    input logic compute,
-    input logic rst_n,
+    input logic rst_n, // Active-low reset
+    input logic compute, // Enable
     output logic [19-1:0] dot_product,
     output logic out_valid
 );
     logic reg_compute_begin;
+    logic valid_stage_0, valid_stage_1, valid_stage_2;
+    logic [16-1:0] products [8];
     int i;
-    logic [8-1:0] reg_vec_a, reg_vec_b [8];
 
-    always_ff @(posedge clk or negedge rst_n) begin: proc_reg_compute_start
+    always_ff @( posedge clk or negedge rst_n ) begin: proc_stage_0
         if (~rst_n) begin
-            reg_compute_begin <= 1'b0;
+            valid_stage_0 <= 1'b0;
             for (i = 0; i < 8; i++) begin
-                reg_vec_a[i] <= '0;
-                reg_vec_b[i] <= '0;
+                products[i] <= '0;
+                valid_stage_0 <= 1'b0;
             end
         end else if (compute) begin
-            for (i = 0; i < 8; i++) begin
-                reg_vec_a[i] <= vec_a[i];
-                reg_vec_b[i] <= vec_b[i];
-            end
-            reg_compute_begin <= 1'b1;
+            products[i] <= vec_a[i] * vec_b[i];
+            valid_stage_0 <= 1'b1;
         end
     end
 
-    logic [16-1:0] products [8];
-    logic [17-1:0] sum_l1 [4];
-    logic [18-1:0] sum_l2 [2];
-    logic [19-1:0] dot_product_in;
-
-    genvar i, j, k;
-    generate
-        for (i = 0; i < 8; i++) begin : gen_mult
-            assign products[i] = reg_vec_a[i] * reg_vec_b[i]; // if using packed 2D, just use [i]
+    logic [17-1:0][4-1:0] sum_level1;
+    always_ff @( posedge clk or negedge rst_n ) begin: proc_stage_1
+        if (~rst_n) begin
+            sum_level_1 <= '0;
+            valid_stage_1 <= 1'b0;
+        end else if (valid_stage_0) begin
+            for (i = 0; i < 4; i++) begin
+                sum_level1[i] <= products[(i*2)] + products[(i*2)+1];
+            end
+            valid_stage_1 <= valid_stage_0;
         end
+    end
 
-        for (j = 0; j < 4; j++) begin : gen_sum_l1
-            assign sum_l1[j] = products[2*j] + products[2*j+1];
+    logic [18-1:0][2-1:0] sum_level2;
+    always_ff @( posedge clk or negedge rst_n ) begin: proc_stage_2
+        if (~rst_n) begin
+            sum_level2 <= '0;
+            valid_stage_2 <= 1'b0;
+        end else if (valid_stage_1) begin
+            for (i = 0; i < 2; i++) begin
+                sum_level2[i] <= sum_level1[(i*2)] + sum_level1[(i*2)+1];
+            end
+            valid_stage_2 <= valid_stage_1;
         end
+    end
 
-        for (k = 0; k < 2; k++) begin : gen_sum_l2
-            assign sum_l2[k] = sum_l1[2*k] + sum_l1[2*k+1];
-        end
-    endgenerate
+    // #############################################
+    // THE ABOVE IMPLIES THAT AN ADDER TAKES THE SAME TIME AS A MULTIPLIER
+    // If the combinational multiplier can finish before the next clock edge,
+    // we can probably do sum_level1 and sum_level2 in a single stage.
 
-    assign dot_product_int = sum_l2[0] + sum_l2[1];
-
-    always_ff @(posedge clk or negedge rst_n) begin: proc_output
+    always_ff @( posedge clk or negedge rst_n ) begin: proc_final
         if (~rst_n) begin
             dot_product <= '0;
             out_valid <= 1'b0;
-        end else if (reg_compute_begin) begin
-            dot_product <= dot_product_int;
-            out_valid <= 1'b0;
+        end else if (valid_stage_2) begin
+            dot_product <= sum_level2[0] + sum_level2[1];
+            out_valid <= valid_stage_2;
         end
     end
 endmodule
 
+// Generate block, unpacked vectors for initial registers, products, and intermediary sums
 // Claude: Using systemverilog array sum function
 // ################# Not compiling. Apparently needs IP########################
 // module vector_dot_product_8_bhv_funadd (
