@@ -1,27 +1,53 @@
 module vector_dot_product_8_treeadd_comparator_8 (
     input logic [64-1:0] vec_a, vec_b,
-    output logic [19-1:0] dot_product_bhv_treeadd_explicit, dot_product_bhv_treeadd_packed, dot_product_bhv_treadd_unpacked
+    input logic clk, compute, rst_n,
+    output logic [19-1:0] dot_product_bhv_treeadd_explicit,
+        dot_product_bhv_treeadd_packed,
+        dot_product_bhv_treadd_unpacked,//dot_product_bhv_treeadd_param,
+        dot_product_bhv_treeadd_pipelined,
+    output logic out_valid
 );
     vector_dot_product_bhv_treeadd_explicit_8 (
+        .clk(clk),
+        .compute(compute),
+        .rst_n(rst_n),
         .vec_a(vec_a),
         .vec_b(vec_b),
+        .out_valid(out_valid),
         .dot_product(dot_product_bhv_treeadd_explicit)
     );
     vector_dot_product_bhv_treeadd_packed_8 (
+        .clk(clk),
+        .compute(compute),
+        .rst_n(rst_n),
         .vec_a(vec_a),
         .vec_b(vec_b),
+        .out_valid(out_valid),
         .dot_product(dot_product_bhv_treeadd_packed)
     );
     vector_dot_product_bhv_treeadd_unpacked_8 (
+        .clk(clk),
+        .compute(compute),
+        .rst_n(rst_n),
         .vec_a(vec_a),
         .vec_b(vec_b),
+        .out_valid(out_valid),
         .dot_product(dot_product_bhv_treeadd_unpacked)
     );
-    vector_dot_product_bhv_treeadd_param_8 (
+    vector_dot_product_bhv_treeadd_pipelined_8 (
+        .clk(clk),
+        .compute(compute),
+        .rst_n(rst_n),
         .vec_a(vec_a),
         .vec_b(vec_b),
-        .dot_product(dot_product_bhv_treeadd_param)
+        .out_valid(out_valid),
+        .dot_product(dot_product_bhv_treeadd_pipelined)
     );
+    // vector_dot_product_bhv_treeadd_param_8 (
+    //     .vec_a(vec_a),
+    //     .vec_b(vec_b),
+    //     .dot_product(dot_product_bhv_treeadd_param)
+    // );
 endmodule
 
 // Using explicit tree-based adder
@@ -146,6 +172,90 @@ module vector_dot_product_bhv_treeadd_packed_8 (
         end else if (reg_compute_begin) begin
             dot_product <= dot_product_int;
             out_valid <= 1'b1;
+        end
+    end
+endmodule
+
+// Pipelined, packed vectors for initial registers, unpacked for products, and intermediary sums
+module vector_dot_product_bhv_treeadd_pipelined_8 (
+    input logic [8-1:0][8-1:0] vec_a, vec_b,
+    input logic clk,
+    input logic rst_n, // Active-low reset
+    input logic compute, // Enable
+    output logic [19-1:0] dot_product,
+    output logic out_valid
+);
+    logic [8-1:0][8-1:0] reg_vec_a, reg_vec_b;
+    logic reg_compute_begin;
+    logic valid_stage_0, valid_stage_1, valid_stage_2;
+    logic [16-1:0] products [8];
+    int i;
+
+    always_ff @( posedge clk or negedge rst_n ) begin: proc_stage_0
+        if (~rst_n) begin
+            valid_stage_0 <= 1'b0;
+            for (i = 0; i < 8; i++) begin
+                reg_vec_a <= '0;
+                reg_vec_b <= '0;
+                valid_stage_0 <= 1'b0;
+            end
+        end else if (compute) begin
+            reg_vec_a <= vec_a;
+            rev_vec_b <= vec_b;
+            valid_stage_0 <= 1'b1;
+        end
+    end
+
+    // Combinational multiply
+    // ##########################################
+    // ENSURE COMPLETION BEFORE NEXT RISING EDGE!
+    // ##########################################
+    // Move to next stage in always_ff if not meeting timing
+    genvar g_i;
+    generate
+        for (g_i = 0; g_i < 8; g_i++) begin: gen_multiply
+            assign products[g_i] = reg_vec_a[g_i] * reg_vec_b[g_i];
+        end
+    endgenerate
+
+    logic [17-1:0][4-1:0] sum_level1;
+    always_ff @( posedge clk or negedge rst_n ) begin: proc_stage_1
+        if (~rst_n) begin
+            sum_level_1 <= '0;
+            valid_stage_1 <= 1'b0;
+        end else if (valid_stage_0) begin
+            for (i = 0; i < 4; i++) begin
+                sum_level1[i] <= products[(i*2)] + products[(i*2)+1];
+            end
+            valid_stage_1 <= valid_stage_0;
+        end
+    end
+
+    logic [18-1:0][2-1:0] sum_level2;
+    always_ff @( posedge clk or negedge rst_n ) begin: proc_stage_2
+        if (~rst_n) begin
+            sum_level2 <= '0;
+            valid_stage_2 <= 1'b0;
+        end else if (valid_stage_1) begin
+            for (i = 0; i < 2; i++) begin
+                sum_level2[i] <= sum_level1[(i*2)] + sum_level1[(i*2)+1];
+            end
+            valid_stage_2 <= valid_stage_1;
+        end
+    end
+
+    // #############################################
+    // THE ABOVE IMPLIES THAT AN ADDER TAKES THE SAME TIME AS A MULTIPLIER
+    // If the combinational multiplier can finish before the next clock edge,
+    // we can probably do sum_level1 and sum_level2 in a single stage.
+
+    always_ff @( posedge clk or negedge rst_n ) begin: proc_final
+        if (~rst_n) begin
+            dot_product <= '0;
+            out_valid <= 1'b0;
+        end else if (valid_stage_2) begin
+            dot_product <= sum_level2[0] + sum_level2[1];
+            out_valid <= valid_stage_2;
         end
     end
 endmodule
