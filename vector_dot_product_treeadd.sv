@@ -155,8 +155,8 @@ module vector_dot_product_bhv_treeadd_packed_8 (
         end
     endgenerate
 
-    logic [17-1:0][4-1:0] sum_level1;
-    logic [18-1:0][2-1:0] sum_level2;
+    logic [4-1:0][17-1:0] sum_level1;
+    logic [2-1:0][18-1:0] sum_level2;
     logic [19-1:0] dot_product_int;
 
     // Tree-based addition using generate
@@ -176,6 +176,10 @@ module vector_dot_product_bhv_treeadd_packed_8 (
 
     assign dot_product_int = sum_level2[0] + sum_level2[1];
 
+    // #########################################################
+    // ENSURE COMPLETION OF ABOVE COMBINATIONAL OPERATION BEFORE
+    // NEXT RISING EDGE
+    // #########################################################
     always_ff @(posedge clk or negedge rst_n) begin
         if (~rst_n) begin
             out_valid <= 1'b0;
@@ -238,6 +242,10 @@ module vector_dot_product_bhv_treeadd_unpacked_8 (
 
     assign dot_product_int = sum_l2[0] + sum_l2[1];
 
+    // #########################################################
+    // ENSURE COMPLETION OF ABOVE COMBINATIONAL OPERATION BEFORE
+    // NEXT RISING EDGE
+    // #########################################################
     always_ff @(posedge clk or negedge rst_n) begin: proc_output
         if (~rst_n) begin
             dot_product <= '0;
@@ -276,7 +284,7 @@ module vector_dot_product_bhv_treeadd_pipelined_combMult_8 (
         end else if (compute) begin
             reg_vec_a <= vec_a;
             rev_vec_b <= vec_b;
-            valid_stage_0 <= 1'b1;
+            valid_stage_0 <= compute;
         end
     end
 
@@ -292,10 +300,10 @@ module vector_dot_product_bhv_treeadd_pipelined_combMult_8 (
         end
     endgenerate
 
-    logic [17-1:0][4-1:0] sum_level1;
+    logic [4-1:0][17-1:0] sum_level1;
     always_ff @( posedge clk or negedge rst_n ) begin: proc_stage_1
         if (~rst_n) begin
-            sum_level_1 <= '0;
+            sum_level1 <= '0;
             valid_stage_1 <= 1'b0;
         end else if (valid_stage_0) begin
             for (i = 0; i < 4; i++) begin
@@ -305,7 +313,7 @@ module vector_dot_product_bhv_treeadd_pipelined_combMult_8 (
         end
     end
 
-    logic [18-1:0][2-1:0] sum_level2;
+    logic [2-1:0][18-1:0] sum_level2;
     always_ff @( posedge clk or negedge rst_n ) begin: proc_stage_2
         if (~rst_n) begin
             sum_level2 <= '0;
@@ -356,12 +364,16 @@ module vector_dot_product_bhv_treeadd_pipelined_8 (
                 valid_stage_0 <= 1'b0;
             end
         end else if (compute) begin
-            products[i] <= vec_a[i] * vec_b[i];
-            valid_stage_0 <= 1'b1;
+            for (i = 0; i < 8; i++) begin
+                products[i] <= vec_a[i] * vec_b[i];
+                valid_stage_0 <= 1'b1;
+            end
+        end else begin
+            valid_stage_0 <= 1'b0;
         end
     end
 
-    logic [17-1:0][4-1:0] sum_level1;
+    logic [4-1:0][17-1:0] sum_level1;
     always_ff @( posedge clk or negedge rst_n ) begin: proc_stage_1
         if (~rst_n) begin
             sum_level_1 <= '0;
@@ -371,10 +383,12 @@ module vector_dot_product_bhv_treeadd_pipelined_8 (
                 sum_level1[i] <= products[(i*2)] + products[(i*2)+1];
             end
             valid_stage_1 <= valid_stage_0;
+        end else begin
+            valid_stage_1 <= 1'b0;
         end
     end
 
-    logic [18-1:0][2-1:0] sum_level2;
+    logic [2-1:0][18-1:0] sum_level2;
     always_ff @( posedge clk or negedge rst_n ) begin: proc_stage_2
         if (~rst_n) begin
             sum_level2 <= '0;
@@ -384,6 +398,8 @@ module vector_dot_product_bhv_treeadd_pipelined_8 (
                 sum_level2[i] <= sum_level1[(i*2)] + sum_level1[(i*2)+1];
             end
             valid_stage_2 <= valid_stage_1;
+        end else begin
+            valid_stage_2 <= 1'b0;
         end
     end
 
@@ -399,6 +415,8 @@ module vector_dot_product_bhv_treeadd_pipelined_8 (
         end else if (valid_stage_2) begin
             dot_product <= sum_level2[0] + sum_level2[1];
             out_valid <= valid_stage_2;
+        end else begin
+            out_valid <= 1'b0;
         end
     end
 endmodule
