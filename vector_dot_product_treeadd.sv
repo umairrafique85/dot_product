@@ -11,21 +11,49 @@ module vector_dot_product_8_treeadd_comparator_8 (
     output logic [19-1:0] dot_product_bhv_treeadd_pipelined_combMul,
     output logic          out_valid
 );
-    vector_dot_product_bhv_treeadd_explicit_8(
-        .clk(clk), .compute(compute), .rst_n(rst_n), .vec_a(vec_a), .vec_b(vec_b), .out_valid(out_valid), .dot_product(dot_product_bhv_treeadd_explicit)
-    ); vector_dot_product_bhv_treeadd_packed_8(
-        .clk(clk), .compute(compute), .rst_n(rst_n), .vec_a(vec_a), .vec_b(vec_b), .out_valid(out_valid), .dot_product(dot_product_bhv_treeadd_packed)
-    ); vector_dot_product_bhv_treeadd_unpacked_8(
-        .clk(clk), .compute(compute), .rst_n(rst_n), .vec_a(vec_a), .vec_b(vec_b), .out_valid(out_valid), .dot_product(dot_product_bhv_treeadd_unpacked)
-    ); vector_dot_product_bhv_treeadd_pipelined_8(
-        .clk(clk), .compute(compute), .rst_n(rst_n), .vec_a(vec_a), .vec_b(vec_b), .out_valid(out_valid), .dot_product(dot_product_bhv_treeadd_pipelined)
-    ); vector_dot_product_bhv_treeadd_pipelined_combMult_8(
-        .clk(clk),
-        .compute(compute),
-        .rst_n(rst_n),
-        .vec_a(vec_a),
-        .vec_b(vec_b),
-        .out_valid(out_valid),
+    vector_dot_product_bhv_treeadd_explicit_8 variant_explicit (
+        .clk        (clk),
+        .compute    (compute),
+        .rst_n      (rst_n),
+        .vec_a      (vec_a),
+        .vec_b      (vec_b),
+        .out_valid  (out_valid),
+        .dot_product(dot_product_bhv_treeadd_explicit)
+    );
+    vector_dot_product_bhv_treeadd_packed_8 variant_gen_packed (
+        .clk        (clk),
+        .compute    (compute),
+        .rst_n      (rst_n),
+        .vec_a      (vec_a),
+        .vec_b      (vec_b),
+        .out_valid  (out_valid),
+        .dot_product(dot_product_bhv_treeadd_packed)
+    );
+    vector_dot_product_bhv_treeadd_unpacked_8 variant_gen_unpacked (
+        .clk        (clk),
+        .compute    (compute),
+        .rst_n      (rst_n),
+        .vec_a      (vec_a),
+        .vec_b      (vec_b),
+        .out_valid  (out_valid),
+        .dot_product(dot_product_bhv_treeadd_unpacked)
+    );
+    vector_dot_product_bhv_treeadd_pipelined_8 variant_piped (
+        .clk        (clk),
+        .compute    (compute),
+        .rst_n      (rst_n),
+        .vec_a      (vec_a),
+        .vec_b      (vec_b),
+        .out_valid  (out_valid),
+        .dot_product(dot_product_bhv_treeadd_pipelined)
+    );
+    vector_dot_product_bhv_treeadd_pipelined_combMult_8 variant_piped_comb (
+        .clk        (clk),
+        .compute    (compute),
+        .rst_n      (rst_n),
+        .vec_a      (vec_a),
+        .vec_b      (vec_b),
+        .out_valid  (out_valid),
         .dot_product(dot_product_bhv_treeadd_pipelined_combMul)
     );
     // vector_dot_product_bhv_treeadd_param_8 (
@@ -131,11 +159,16 @@ module vector_dot_product_bhv_treeadd_packed_8 (
             reg_vec_a         <= '0;
             reg_vec_b         <= '0;
             last_stg_0        <= 1'b0;
-        end else begin
+        end else if (compute) begin
             reg_compute_begin <= 1'b1;
             reg_vec_a         <= vec_a;
             reg_vec_b         <= vec_b;
             last_stg_0        <= in_last;
+        end else begin
+            reg_compute_begin <= 1'b0;
+            reg_vec_a         <= '0;
+            reg_vec_b         <= '0;
+            last_stg_0        <= 1'b0;
         end
     end
 
@@ -393,15 +426,14 @@ module vector_dot_product_bhv_treeadd_pipelined_8 (
         if (~rst_n) begin
             valid_stage_0 <= 1'b0;
             for (i = 0; i < 8; i++) begin
-                products[i]   <= '0;
-                valid_stage_0 <= 1'b0;
+                products[i] <= '0;
             end
             last_stg_0 <= 1'b0;
         end else if (compute) begin
             for (i = 0; i < 8; i++) begin
                 products[i] <= vec_a[i] * vec_b[i];
             end
-            valid_stage_0 <= compute;
+            valid_stage_0 <= 1'b1;
             last_stg_0    <= in_last;
         end else begin
             valid_stage_0 <= 1'b0;
@@ -422,7 +454,7 @@ module vector_dot_product_bhv_treeadd_pipelined_8 (
             for (i = 0; i < 4; i++) begin
                 sum_level1[i] <= products[(i*2)] + products[(i*2)+1];
             end
-            valid_stage_1 <= valid_stage_0;
+            valid_stage_1 <= 1'b1;
             last_stg_1    <= last_stg_0;
         end else begin
             valid_stage_1 <= 1'b0;
@@ -443,7 +475,7 @@ module vector_dot_product_bhv_treeadd_pipelined_8 (
             for (i = 0; i < 2; i++) begin
                 sum_level2[i] <= sum_level1[(i*2)] + sum_level1[(i*2)+1];
             end
-            valid_stage_2 <= valid_stage_1;
+            valid_stage_2 <= 1'b1;
             last_stg_2    <= last_stg_1;
         end else begin
             valid_stage_2 <= 1'b0;
@@ -464,7 +496,7 @@ module vector_dot_product_bhv_treeadd_pipelined_8 (
             out_last    <= 1'b0;
         end else if (valid_stage_2) begin
             dot_product <= sum_level2[0] + sum_level2[1];
-            out_valid   <= valid_stage_2;
+            out_valid   <= 1'b1;
             out_last    <= last_stg_2;
         end else begin
             out_valid <= 1'b0;
