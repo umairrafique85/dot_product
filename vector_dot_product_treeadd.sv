@@ -63,7 +63,9 @@ module vector_dot_product_8_treeadd_comparator_8 (
     // );
 endmodule
 
-// Using explicit tree-based adder
+// Using explicit tree-based adder.
+// combinational logic for compute, assuming all results settle within one
+// clock cycle
 module vector_dot_product_bhv_treeadd_explicit_8 (
     input  logic [8-1:0][ 8-1:0] vec_a,
     input  logic [8-1:0][ 8-1:0] vec_b,
@@ -134,6 +136,8 @@ endmodule
 
 // Same target, generate block, packed vectors for initial vector registers, unpacked vector for products
 // packed intermediary sums
+// combinational logic for computation again, assuming results settle within
+// one clock cycle
 module vector_dot_product_bhv_treeadd_packed_8 (
     input  logic [8-1:0][ 8-1:0] vec_a,
     input  logic [8-1:0][ 8-1:0] vec_b,
@@ -219,6 +223,8 @@ module vector_dot_product_bhv_treeadd_packed_8 (
 endmodule
 
 // Generate block, unpacked vectors for initial registers, products, and intermediary sums
+// combinational logic for computation again, assuming results settle within
+// one clock cycle
 module vector_dot_product_bhv_treeadd_unpacked_8 (
     input  logic [8-1:0][ 8-1:0] vec_a,
     input  logic [8-1:0][ 8-1:0] vec_b,
@@ -321,11 +327,11 @@ module vector_dot_product_bhv_treeadd_pipelined_combMult_8 (
     always_ff @(posedge clk or negedge rst_n) begin : proc_stage_0
         if (~rst_n) begin
             valid_stage_0 <= 1'b0;
-            for (i = 0; i < 8; i++) begin  // Maybe I don't need the loop, and direct assignment would work since it's a packed array
-                reg_vec_a     <= '0;
-                reg_vec_b     <= '0;
-                valid_stage_0 <= 1'b0;
-            end
+            // for (i = 0; i < 8; i++) begin  // Maybe I don't need the loop, and direct assignment would work since it's a packed array
+            reg_vec_a     <= '0;
+            reg_vec_b     <= '0;
+            valid_stage_0 <= 1'b0;
+            // end
             last_stg_0 <= 1'b0;
         end else if (compute) begin
             reg_vec_a     <= vec_a;

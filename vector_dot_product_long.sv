@@ -1,10 +1,12 @@
+// wrapper around atomic vector multiplier to accumulate
 module vector_dot_product_long (
     input  logic                 clk,
-    input  logic                 compute,
     input  logic                 rst_n,
-    input        [8-1:0][ 8-1:0] t_data,
-    input        [8-1:0][ 8-1:0] weights,
-    output                       out_valid,
+    input  logic                 compute,
+    input logic in_last,
+    input logic      [8-1:0][ 8-1:0] t_data,
+    input logic     [8-1:0][ 8-1:0] weights,
+    output logic                      out_valid,
     output logic        [32-1:0] dot_product
 );
     logic compute_int;
