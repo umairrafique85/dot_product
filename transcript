@@ -1,0 +1,109 @@
+# //  Questa Intel Starter FPGA Edition-64
+# //  Version 2024.3 linux_x86_64 Sep 10 2024
+# //
+# // Unpublished work. Copyright 2024 Siemens
+# //
+# // This material contains trade secrets or otherwise confidential information
+# // owned by Siemens Industry Software Inc. or its affiliates (collectively,
+# // "SISW"), or its licensors. Access to and use of this information is strictly
+# // limited as set forth in the Customer's applicable agreements with SISW.
+# //
+# // This material may not be copied, distributed, or otherwise disclosed outside
+# // of the Customer's facilities without the express written permission of SISW,
+# // and may not be used in any way not expressly authorized by SISW.
+# //
+ls
+# db
+# dot_product.qpf
+# etch2170
+# gentests_dot_product.py
+# incremental_db
+# output_files
+# simulation
+# tb_vector_dot_product.sv
+# tests
+# transcript
+# vec_dot_product_8_8_bhv_oai_assignment_defaults.qdf
+# vec_dot_product_8_8_bhv_oai_description.txt
+# vec_dot_product_8_8_bhv_oai.qsf
+# vec_dot_product_8_8_bhv_oai.qws
+# vector_dot_product_accum.sv
+# vector_dot_product_integrated.sv
+# vector_dot_product_long.sv
+# vector_dot_product.sv.bak
+# vector_dot_product_treeadd.sv
+cd /home/user/learning/fpga/fpga_coursera_boulder/course_1_intro/pipemultQP16_1/Schematic
+vlog pipemult.vhd
+# Questa Intel Starter FPGA Edition-64 vlog 2024.3 Compiler 2024.09 Sep 10 2024
+# Start time: 19:26:32 on Nov 16,2025
+# vlog -reportprogress 300 pipemult.vhd 
+# ** Error: (vlog-13036) pipemult.vhd(1): near "--": Operator only allowed in SystemVerilog.
+# ** Error: (vlog-13069) pipemult.vhd(1): near "--": syntax error, unexpected --.
+# End time: 19:26:32 on Nov 16,2025, Elapsed time: 0:00:00
+# Errors: 2, Warnings: 0
+# /home/user/tools/altera_lite/24.1std/questa_fse/linux_x86_64/vlog failed.
+vcom pipemult.vhd
+# Questa Intel Starter FPGA Edition-64 vcom 2024.3 Compiler 2024.09 Sep 10 2024
+# Start time: 19:32:23 on Nov 16,2025
+# vcom -reportprogress 300 pipemult.vhd 
+# -- Loading package STANDARD
+# -- Loading package TEXTIO
+# -- Loading package std_logic_1164
+# -- Compiling entity pipemult
+# -- Compiling architecture bdf_type of pipemult
+# End time: 19:32:23 on Nov 16,2025, Elapsed time: 0:00:00
+# Errors: 0, Warnings: 0
+vsim -voptargs=+acc work.pipemult
+# vsim -voptargs="+acc" work.pipemult 
+# Start time: 19:36:00 on Nov 16,2025
+# ** Note: (vsim-3812) Design is being optimized...
+# ** Warning: (vopt-10908) Some optimizations are turned off because the +acc switch is in effect.
+# ** Warning: pipemult.vhd(66): (vopt-3473) Component instance "b2v_inst : mult" is not bound.
+#         Region: /pipemult
+# ** Warning: pipemult.vhd(73): (vopt-3473) Component instance "b2v_inst1 : ram" is not bound.
+#         Region: /pipemult
+# ** Note: (vsim-12126) Error and warning message counts have been restored: Errors=0, Warnings=3.
+# Loading std.standard
+# Loading std.textio(body)
+# Loading ieee.std_logic_1164(body)
+# Loading work.pipemult(bdf_type)#1
+# ** Warning: (vsim-3473) Component instance "b2v_inst : mult" is not bound.
+#    Time: 0 ns  Iteration: 0  Instance: /pipemult File: pipemult.vhd
+# ** Warning: (vsim-3473) Component instance "b2v_inst1 : ram" is not bound.
+#    Time: 0 ns  Iteration: 0  Instance: /pipemult File: pipemult.vhd
+vcom pipemult.vhd ram
+# Questa Intel Starter FPGA Edition-64 vcom 2024.3 Compiler 2024.09 Sep 10 2024
+# Start time: 19:44:42 on Nov 16,2025
+# vcom -reportprogress 300 pipemult.vhd ram 
+# -- Loading package STANDARD
+# -- Loading package TEXTIO
+# -- Loading package std_logic_1164
+# -- Compiling entity pipemult
+# -- Compiling architecture bdf_type of pipemult
+# ** Error: (vcom-7) Failed to open design unit file "ram" in read mode.
+# No such file or directory. (errno = ENOENT)
+# End time: 19:44:42 on Nov 16,2025, Elapsed time: 0:00:00
+# Errors: 1, Warnings: 0
+# /home/user/tools/altera_lite/24.1std/questa_fse/linux_x86_64/vcom failed.
+vsim -voptargs=+acc work.pipemult
+# End time: 19:45:25 on Nov 16,2025, Elapsed time: 0:09:25
+# Errors: 0, Warnings: 5
+# vsim -voptargs="+acc" work.pipemult 
+# Start time: 19:45:25 on Nov 16,2025
+# ** Note: (vsim-3813) Design is being optimized due to module recompilation...
+# ** Warning: (vopt-10908) Some optimizations are turned off because the +acc switch is in effect.
+# ** Warning: pipemult.vhd(66): (vopt-3473) Component instance "b2v_inst : mult" is not bound.
+#         Region: /pipemult
+# ** Warning: pipemult.vhd(73): (vopt-3473) Component instance "b2v_inst1 : ram" is not bound.
+#         Region: /pipemult
+# ** Note: (vsim-12126) Error and warning message counts have been restored: Errors=0, Warnings=3.
+# Loading std.standard
+# Loading std.textio(body)
+# Loading ieee.std_logic_1164(body)
+# Loading work.pipemult(bdf_type)#1
+# ** Warning: (vsim-3473) Component instance "b2v_inst : mult" is not bound.
+#    Time: 0 ns  Iteration: 0  Instance: /pipemult File: pipemult.vhd
+# ** Warning: (vsim-3473) Component instance "b2v_inst1 : ram" is not bound.
+#    Time: 0 ns  Iteration: 0  Instance: /pipemult File: pipemult.vhd
+# End time: 19:46:37 on Nov 16,2025, Elapsed time: 0:01:12
+# Errors: 0, Warnings: 5
