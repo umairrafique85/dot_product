@@ -3,15 +3,16 @@ module vector_dot_product_fixed_treeadd (
     // input interfaces
     input  logic                 clk,
     input  logic                 rst_n,
-    input  logic                 in_valid,    // analogous to enable / compute
+    input  logic                 in_valid,     // analogous to enable / compute
     input  logic                 in_last,
-    input  logic                 in_first,
-    output logic                 in_ready,    // Not used at the moment. Need to probably use it for back-pressure
+    input  logic                 in_first,     // Wouldn't it be better if we just set the accummulator to 0 on reset, or after last is read out?
+    output logic                 in_ready,
     input  logic [8-1:0][ 8-1:0] t_data,
     input  logic [8-1:0][ 8-1:0] weights,
     // output interfaces
     output logic                 out_valid,
-    output logic        [32-1:0] dot_product
+    output logic        [32-1:0] dot_product,
+    input  logic                 out_ready     // to control pipeline and assert that signal has been read
 );
     // Stage 0: Multiply
     logic [16-1:0] products      [8];
@@ -30,7 +31,7 @@ module vector_dot_product_fixed_treeadd (
         end else if (in_valid & in_ready) begin
             for (i = 0; i < 8; i++) begin
                 products[i] <= vec_a[i] * vec_b[i];  // t_data[i] * weights[i] REVIEW: Reason for not registering inputs at first pulse
-            end
+            end  // Also: what happens to products when above is false?
             valid_stage_0 <= 1'b1;
             last_stage_0  <= in_last;
             first_stage_0 <= in_first;
@@ -54,7 +55,7 @@ module vector_dot_product_fixed_treeadd (
             first_stage_1 <= 1'b0;
         end else if (valid_stage_0) begin
             for (j = 0; j < 4; j++) begin
-                sum_level_1[i] <= products[j*2] + products[(j*2)+1];
+                sum_level_1[i] <= products[j*2] + products[(j*2)+1];  // what value does this have when valid_stage_0 is 0?
             end
             valid_stage_1 <= 1'b1;
             last_stage_1  <= last_stage_0;
@@ -79,7 +80,7 @@ module vector_dot_product_fixed_treeadd (
             first_stage_2 <= 1'b0;
         end else if (valid_stage_1) begin
             for (k = 0; k < 2; k++) begin
-                sum_level_2[k] <= sum_level_1[i*2] + sum_level_1[(i*2)+1];
+                sum_level_2[k] <= sum_level_1[i*2] + sum_level_1[(i*2)+1];  // what happens to this when valid_state_1 is 0?
             end
             valid_stage_2 <= 1'b1;
             last_stage_2  <= last_stage_1;
@@ -102,9 +103,11 @@ module vector_dot_product_fixed_treeadd (
             end else begin
                 dot_product <= dot_product + (sum_level_2[0] + sum_level_2[1]);
             end
-            if (last_stage_2) begin
-                out_valid <= 1'b1;
-            end else out_valid <= 1'b0;
+            out_valid <= last_stage_2;
+            // if (last_stage_2) begin  // Should I just use: out_valid <= last_stage_2;
+            //     out_valid <= 1'b1;
+            // end else out_valid <= 1'b0;
         end
     end
+
 endmodule
