@@ -5,7 +5,6 @@ module vector_dot_product_fixed_treeadd (
     input  logic                 rst_n,
     input  logic                 in_valid,     // analogous to enable / compute
     input  logic                 in_last,
-    input  logic                 in_first,
     output logic                 in_ready,
     input  logic [8-1:0][ 8-1:0] t_data,
     input  logic [8-1:0][ 8-1:0] weights,
@@ -17,8 +16,8 @@ module vector_dot_product_fixed_treeadd (
     // Stage 0: Multiply
     logic [16-1:0] products      [8];
     logic          valid_stage_0;
-    logic last_stage_0, first_stage_0;
-    int i;
+    logic          last_stage_0;
+    int            i;
 
     always_ff @(posedge clk or negedge rst_n) begin : proc_stage_0_product
         if (~rst_n) begin
@@ -26,15 +25,13 @@ module vector_dot_product_fixed_treeadd (
             for (i = 0; i < 8; i++) begin
                 products[i] <= '0;
             end
-            last_stage_0  <= 1'b0;
-            first_stage_0 <= 1'b0;
+            last_stage_0 <= 1'b0;
         end else if (in_valid && in_ready) begin
             for (i = 0; i < 8; i++) begin
                 products[i] <= t_data[i] * weights[i];  // REVIEW: Reason for not registering inputs at first pulse
             end  // Also: what happens to products when above is false?
             valid_stage_0 <= 1'b1;
             last_stage_0  <= in_last;
-            first_stage_0 <= in_first;
         end else valid_stage_0 <= 1'b0;  // else: hold current value (stall)
     end
     /* ****************************************************************
@@ -73,64 +70,63 @@ module vector_dot_product_fixed_treeadd (
     // Stage 1: Sum level 1
     logic [4-1:0][17-1:0] sum_level_1;
     logic                 valid_stage_1;
-    logic last_stage_1, first_stage_1;
-    logic j;
+    logic                 last_stage_1;
+    logic                 j;
 
     always_ff @(posedge clk or negedge rst_n) begin : proc_stage_1_sum_1
         if (~rst_n) begin
             sum_level_1   <= '0;
             valid_stage_1 <= 1'b0;
-            last_stage_0  <= 1'b0;
-            first_stage_1 <= 1'b0;
+            last_stage_1  <= 1'b0;
         end else if (valid_stage_0) begin
             for (j = 0; j < 4; j++) begin
-                sum_level_1[i] <= products[j*2] + products[(j*2)+1];  // what value does this have when valid_stage_0 is 0?
+                sum_level_1[j] <= products[j*2] + products[(j*2)+1];  // what value does this have when valid_stage_0 is 0?
             end
             valid_stage_1 <= 1'b1;
             last_stage_1  <= last_stage_0;
-            first_stage_1 <= first_stage_0;
         end else valid_stage_1 <= 1'b0;
     end
 
     // Stage 2: Sum level 2
     logic [2-1:0][18-1:0] sum_level_2;
     logic                 valid_stage_2;
-    logic last_stage_2, first_stage_2;
-    logic k;  // iterator for sum_level_2
+    logic                 last_stage_2;
+    logic                 k;  // iterator for sum_level_2
     always_ff @(posedge clk or negedge rst_n) begin : proc_stage_2_sum_2
         if (~rst_n) begin
             sum_level_2   <= '0;
             valid_stage_2 <= 1'b0;
             last_stage_2  <= 1'b0;
-            first_stage_2 <= 1'b0;
         end else if (valid_stage_1) begin
             for (k = 0; k < 2; k++) begin
-                sum_level_2[k] <= sum_level_1[i*2] + sum_level_1[(i*2)+1];  // what happens to this when valid_state_1 is 0?
+                sum_level_2[k] <= sum_level_1[k*2] + sum_level_1[(k*2)+1];  // what happens to this when valid_state_1 is 0?
             end
             valid_stage_2 <= 1'b1;
             last_stage_2  <= last_stage_1;
-            first_stage_2 <= first_stage_1;
         end else valid_stage_2 <= 1'b0;
     end
 
     // Stage 3: final
     logic [32-1:0] accummulator;  // No need
+    logic          rst_accummulator;
     always_ff @(posedge clk or negedge rst_n) begin : proc_stage_3_sum_final
         if (~rst_n) begin
-            dot_product <= '0;
-            out_valid   <= 1'b0;
+            dot_product      <= '0;
+            out_valid        <= 1'b0;
+            rst_accummulator <= 1'b1;
         end else if (valid_stage_2) begin
-            if (first_stage_2) begin
+            if (rst_accummulator) begin
                 accummulator <= sum_level_2[0] + sum_level_2[1];
             end else begin
                 accummulator <= accummulator + (sum_level_2[0] + sum_level_2[1]);
             end
             if (last_stage_2) begin
-                dot_product <= accummulator + (sum_level_2[0] + sum_level_2[1]);
-                out_valid   <= 1'b1;
-            end
+                dot_product      <= accummulator + (sum_level_2[0] + sum_level_2[1]);
+                out_valid        <= 1'b1;
+                rst_accummulator <= 1'b1;
+            end else rst_accummulator <= 1'b0;
         end
     end
 
-    assign in_ready = !out_valid || (out_valid && !out_ready);
+    assign in_ready = !out_valid || out_ready;
 endmodule
