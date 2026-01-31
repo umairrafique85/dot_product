@@ -80,11 +80,11 @@ module vector_dot_product_fixed_treeadd (
         if (~rst_n) begin
             sum_level_1   <= '0;
             valid_stage_1 <= 1'b0;
-            last_stage_0  <= 1'b0;
+            last_stage_1  <= 1'b0;
             first_stage_1 <= 1'b0;
         end else if (valid_stage_0) begin
             for (j = 0; j < 4; j++) begin
-                sum_level_1[i] <= products[j*2] + products[(j*2)+1];  // what value does this have when valid_stage_0 is 0?
+                sum_level_1[j] <= products[j*2] + products[(j*2)+1];  // what value does this have when valid_stage_0 is 0?
             end
             valid_stage_1 <= 1'b1;
             last_stage_1  <= last_stage_0;
@@ -105,7 +105,7 @@ module vector_dot_product_fixed_treeadd (
             first_stage_2 <= 1'b0;
         end else if (valid_stage_1) begin
             for (k = 0; k < 2; k++) begin
-                sum_level_2[k] <= sum_level_1[i*2] + sum_level_1[(i*2)+1];  // what happens to this when valid_state_1 is 0?
+                sum_level_2[k] <= sum_level_1[k*2] + sum_level_1[(k*2)+1];  // what happens to this when valid_state_1 is 0?
             end
             valid_stage_2 <= 1'b1;
             last_stage_2  <= last_stage_1;
@@ -132,5 +132,5 @@ module vector_dot_product_fixed_treeadd (
         end
     end
 
-    assign in_ready = !out_valid || (out_valid && !out_ready);
+    assign in_ready = !out_valid || out_ready;
 endmodule
