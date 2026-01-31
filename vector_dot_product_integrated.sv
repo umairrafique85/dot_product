@@ -5,7 +5,7 @@ module vector_dot_product_fixed_treeadd (
     input  logic                 rst_n,
     input  logic                 in_valid,     // analogous to enable / compute
     input  logic                 in_last,
-    input  logic                 in_first,     // Wouldn't it be better if we just set the accummulator to 0 on reset, or after last is read out?
+    input  logic                 in_first,
     output logic                 in_ready,
     input  logic [8-1:0][ 8-1:0] t_data,
     input  logic [8-1:0][ 8-1:0] weights,
@@ -18,7 +18,7 @@ module vector_dot_product_fixed_treeadd (
     logic [16-1:0] products      [8];
     logic          valid_stage_0;
     logic last_stage_0, first_stage_0;
-    int i;  // iterator for products array
+    int i;
 
     always_ff @(posedge clk or negedge rst_n) begin : proc_stage_0_product
         if (~rst_n) begin
@@ -36,10 +36,6 @@ module vector_dot_product_fixed_treeadd (
             last_stage_0  <= in_last;
             first_stage_0 <= in_first;
         end else valid_stage_0 <= 1'b0;  // else: hold current value (stall)
-        // valid_stage_0 <= 1'b0;
-        // last_stage_0  <= 1'b0;
-        // first_stage_0 <= 1'b0;
-        // end
     end
     /* ****************************************************************
      Why we should use inputs registration for stage 0 instead of the
@@ -78,7 +74,7 @@ module vector_dot_product_fixed_treeadd (
     logic [4-1:0][17-1:0] sum_level_1;
     logic                 valid_stage_1;
     logic last_stage_1, first_stage_1;
-    logic j;  // iterator for sum_level_1
+    logic j;
 
     always_ff @(posedge clk or negedge rst_n) begin : proc_stage_1_sum_1
         if (~rst_n) begin
@@ -93,11 +89,7 @@ module vector_dot_product_fixed_treeadd (
             valid_stage_1 <= 1'b1;
             last_stage_1  <= last_stage_0;
             first_stage_1 <= first_stage_0;
-        end  //else begin
-             // valid_stage_1 <= 1'b0;
-             // last_stage_1  <= 1'b0;  // Should we do this, or preserve the previous state?
-             // first_stage_1 <= 1'b0;  // Should we do this, or preserve the previous state?
-        // end
+        end else valid_stage_1 <= 1'b0;
     end
 
     // Stage 2: Sum level 2
@@ -118,30 +110,25 @@ module vector_dot_product_fixed_treeadd (
             valid_stage_2 <= 1'b1;
             last_stage_2  <= last_stage_1;
             first_stage_2 <= first_stage_1;
-        end  //else begin
-             // valid_stage_2 <= 1'b0;
-             // last_stage_2  <= 1'b0;  // Same objection as before
-             // first_stage_2 <= 1'b0;  // Same objection as before
-        // end
+        end else valid_stage_2 <= 1'b0;
     end
 
     // Stage 3: final
-    // logic valid_accum; // No need
+    logic [32-1:0] accummulator;  // No need
     always_ff @(posedge clk or negedge rst_n) begin : proc_stage_3_sum_final
         if (~rst_n) begin
             dot_product <= '0;
             out_valid   <= 1'b0;
         end else if (valid_stage_2) begin
             if (first_stage_2) begin
-                dot_product <= sum_level_2[0] + sum_level_2[1];
+                accummulator <= sum_level_2[0] + sum_level_2[1];
             end else begin
-                dot_product <= dot_product + (sum_level_2[0] + sum_level_2[1]);
+                accummulator <= accummulator + (sum_level_2[0] + sum_level_2[1]);
             end
-            // valid_accum <= 1'b1; no need
-            // if (last_stage_2) begin  // Should I just use: out_valid <= last_stage_2;
-            //     out_valid <= 1'b1;
-            // end else out_valid <= 1'b0;
-            out_valid <= last_stage_2;
+            if (last_stage_2) begin
+                dot_product <= accummulator + (sum_level_2[0] + sum_level_2[1]);
+                out_valid   <= 1'b1;
+            end
         end
     end
 
